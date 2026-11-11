@@ -15,9 +15,9 @@
 - `GET /api/technicians/{id}/jobs` — a technician's booked jobs
 - `POST /api/jobs` — book a new job for a technician
 
-## Known issue
+## Known issue — FIXED
 
-The Definition of Done above says overlapping bookings must be rejected. As shipped, **this feature does not fully do that** — see `TechnicianAvailabilityService.bookJob(...)` in the backend. This is intentional: it is the subject of the first exercise anyone doing agent-native work on this repo will run. See `pipeline/decisions/feature-1-decisions.md` for the decision this bug relates to (the travel-buffer policy), which the fix should not break.
+As originally shipped, `TechnicianAvailabilityService.bookJob(...)` only rejected a booking whose start time exactly matched an existing one. It now rejects any booking whose time range overlaps an existing non-cancelled job for the same technician, with the 45-minute travel buffer applied (see `pipeline/decisions/feature-1-decisions.md`). Covered by `TechnicianAvailabilityServiceTest`.
 
 ## Artifacts this feature touches
 
