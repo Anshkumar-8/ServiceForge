@@ -97,6 +97,17 @@ class TechnicianAvailabilityServiceTest {
         assertTrue(e.getMessage().contains("45-minute travel buffer"));
     }
 
+    @Test
+    void rejectsABookingWhoseEndIsBeforeItsStart() {
+        // The reported case: 11:00 to 01:00 (1 AM) slipped past the overlap check.
+        assertThrows(InvalidBookingException.class, () -> service.bookJob(3L, "b", at(11, 0), at(1, 0)));
+    }
+
+    @Test
+    void rejectsABookingWithZeroLength() {
+        assertThrows(InvalidBookingException.class, () -> service.bookJob(3L, "zero", at(11, 0), at(11, 0)));
+    }
+
     private static LocalDateTime at(int hour, int minute) {
         return LocalDateTime.now().withHour(hour).withMinute(minute).withSecond(0).withNano(0);
     }

@@ -56,6 +56,11 @@ public class TechnicianAvailabilityService {
      * TRAVEL_BUFFER_MINUTES apart (exactly that gap is allowed).
      */
     public Job bookJob(Long technicianId, String customerName, LocalDateTime startTime, LocalDateTime endTime) {
+        if (!endTime.isAfter(startTime)) {
+            throw new InvalidBookingException(
+                    "End time " + endTime + " must be after start time " + startTime);
+        }
+
         Technician technician = dataStore.findTechnician(technicianId)
                 .orElseThrow(() -> new IllegalArgumentException("No technician with id " + technicianId));
 

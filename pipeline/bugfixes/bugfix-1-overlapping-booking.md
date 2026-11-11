@@ -30,7 +30,7 @@ Repro (technician 1 has a seeded 09:00–11:00 job): book 10:00–12:00 today �
 - Tests for the overlap behaviour; mark the spec's "Known issue" as fixed; update the decision log.
 
 **Out of scope (do not absorb)**
-- Validating `endTime` is after `startTime`.
+- ~~Validating `endTime` is after `startTime`.~~ **Moved into scope** after UI testing (see section 6, "Second pass").
 - Returning `ApiError` (instead of Spring's default body) for `@Valid` failures on `POST /api/jobs`.
 - Any parts/inventory work (Feature 2).
 - New dependencies, any database.
@@ -54,6 +54,8 @@ Rule: each job blocks `[start, end + 45 min]`. A new booking conflicts when
 | A10 | Identical start time is still rejected (no regression) | 09:00–10:00 |
 | A11 | Unknown technician still errors (no regression) | id 999 |
 | A12 | Conflict message names the technician and the buffer | — |
+| A13 | End before start is rejected with 400 + `ApiError` | 11:00–01:00 (the UI case) |
+| A14 | Zero-length booking is rejected with 400 | 11:00–11:00 |
 
 Decision made while writing this: `CANCELLED` jobs do not block a slot (not stated in the original spec).
 
@@ -78,6 +80,17 @@ Decision made while writing this: `CANCELLED` jobs do not block a slot (not stat
 | Verification | `mvn test`: 12 run, 0 failures. Live check against the running backend: 10:00–12:00 → 409, 09:00–10:00 → 409, 11:45–12:45 → 201. |
 | Human checkpoint | The pipeline asks a human to review the spec before coding. Here the plan was shown and the user said to proceed; no separate spec file existed until this document was written afterwards. |
 | Git | `main` holds the original buggy code (`e29c1e4`); the fix is one commit (`d685729`) on `Task-Fix-the-Overlapping-Booking-Bug`, to be raised as a PR. |
+
+### Second pass — found by testing in the UI
+
+| Step | What happened |
+|---|---|
+| Report | A screenshot showed job `a` (10:00–12:00) and job `b` (11:00–**01:00**) both accepted on the same day. |
+| Cause | `b`'s end was before its start (likely 1 AM entered instead of 1 PM). A backwards range never satisfies the overlap comparison, so it slipped through. The first pass had listed this as out of scope; that was the wrong call. |
+| Reproduced | Via API before fixing: 11:00–01:00 → 201; 11:00–13:00 → 409. |
+| Fix | `bookJob` rejects `end <= start` with new `InvalidBookingException`; `JobController` maps it to 400 + `ApiError`. |
+| Verified | 14 tests, 0 failures (2 added: A13, A14). Live: 11:00–01:00 → 400, 11:00–11:00 → 400, 11:00–13:00 → 409, 14:00–15:00 → 201. |
+| Lesson | The first pass's "verification" only exercised the API with sensible ranges, not the UI inputs a user can actually produce. |
 
 ## 7. Follow-ups (not done)
 
