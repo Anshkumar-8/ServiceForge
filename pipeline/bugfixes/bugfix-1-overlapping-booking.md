@@ -95,5 +95,5 @@ Decision made while writing this: `CANCELLED` jobs do not block a slot (not stat
 ## 7. Follow-ups (not done)
 
 - Add the first standing rule under `pipeline/rules/`, e.g. "overlap checks must compare intervals and apply the travel
-  buffer", as `AGENTS.md` anticipates for a shipped bug. It was not created because it was not requested.
+  buffer", as `AGENTS.md` anticipates for a shipped bug. **Done:** `pipeline/rules/overlap-checks.md`.
 - Next time, run this file through `developer-agent` then `tester-agent` instead of doing both in the main session.
