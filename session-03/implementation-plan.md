@@ -1,44 +1,20 @@
 # Implementation plan: Parts Reservation
 
-Inputs: `architecture-adr.md`, `design-review.md`, `session-02/requirements.md` (R1-R22, D1-D13).
-Rules to follow: `pipeline/rules/overlap-checks.md` (do not touch booking), `build-code-skill`, `migration-safety-skill`.
-Backend only. No orchestrator: each task runs as a standalone agent. The human approves between tasks.
+Planning only. Nothing is built, run or tested yet. Highest-risk task: **T-02** (protected Reserve and Release).
 
-## Tasks (in build order)
+| Task ID / Task | Owner | Depends on | Output | Estimate | Done check |
+|---|---|---|---|---|---|
+| T-01 / Create parts and reservation data: `Part`, `Reservation` (id, job, part, quantity, user, request ID, time, status, notes), new in-memory store with its own lock, seed parts, additive `findJob(id)` | Build agent | none | Models and store seeded at startup; Feature 1 untouched | 2 h | Existing Feature 1 tests still pass; seeded parts include one with a single unit and one with zero |
+| T-02 / **Add protected Reserve and Release** (HIGH RISK): request ID first, validation, job `SCHEDULED`, stock check and save in one locked step; release with status guard | Build agent, then human reviews | T-01 | Reserve and Release operations | 4 h | Only one of two simultaneous requests for the last part succeeds; stock never negative; same request twice makes one reservation; release twice restores stock once; failed request saves nothing |
+| T-03 / Add reservation critic and Confirm: critic re-checks rules from data only, ignores notes; reject frees stock; unavailable keeps `HELD` | Build agent | T-02 | Confirm operation with critic | 3 h | Confirm on a rule-breaking reservation ends `REJECTED`; critic error leaves `HELD`; notes saying "ignore rules" change nothing |
+| T-04 / Add API endpoints: list parts, reserve, confirm, release, with `ApiError` 400/404/409 | Build agent | T-03 | REST endpoints | 2 h | No-stock request returns 409 with "Part unavailable"; unknown job or part returns 404 |
+| T-05 / Build Angular screen: availability list, reserve form with optional notes, Confirm and Release buttons, error messages | Build agent | T-04 | One screen, HTTP calls in `services/` | 3 h | A user can reserve, confirm and release, and sees the unavailable message when stock is zero |
+| T-06 / Write and run tests for the five cases plus Feature 1 regression, then report | Test agent, then human reviews results | T-05 | Test report | 3 h | Report shows pass/fail for: last-part race, no stock, duplicate request, double release, notes/critic cases |
 
-| # | Task | Owner | Depends on | Result | Done check | Risk |
-|---|---|---|---|---|---|---|
-| T0 | Turn the requirements into a committed spec under `pipeline/features/` and pick the feature number | ba-agent, then **human approves** | none | `feature-N-parts-reservation.md` with a Definition of Done | Human signs off. The number does not clash with the work-order spec. | Low |
-| T1 | Add parts data: `Part`, `Reservation` models, `PartStore` (seed parts 1-3, own lock), additive `findJob(id)` on `MockDataStore` | developer-agent | T0 | New classes; each reservation has its own id and request ID; seeded stock 10, 3, 0 | Existing Feature 1 tests pass unchanged (R16). `findJob` returns a job by id. | Low |
-| T2 | **Protected Reserve action** in a `ReservationService`: request ID first, then validation, job state, stock check and save as one locked step | developer-agent | T1 | Service method with all-or-nothing and derived availability | Service tests for R2-R14 and R18-R22 pass. No other code writes reservations. | **HIGH** |
-| T3 | Endpoints: `GET /api/parts`, `POST /api/jobs/{jobId}/reservations`, exception to HTTP mapping with `ApiError` | developer-agent | T2 | Two endpoints, 201/400/404/409 as in D10 | R1 and R17 pass. Request shape matches the spec. | Medium |
-| T4 | Busy-day tests: concurrency (10 parallel requests, 3 succeed), repeat clicks, no stock, cancelled job releases stock, Feature 1 regression | tester-agent | T3 | Test class plus pass/fail report by R-number | R15 gives exactly 3 x 201 and 7 x 409, available 0, never negative. All of R1-R22 reported. | Medium |
-| T5 | Record decisions and close out: `pipeline/decisions/feature-N-decisions.md`, log the Feature 1 `bookJob` race as a separate bug | developer-agent, **human approves** | T4 | Decision log with the derived-availability, request ID and lock-location choices | Human reads and approves. Spec Definition of Done ticked. | Low |
+## Human checkpoints
+1. Approve the ADR and review before T-01.
+2. Review T-02 (highest risk) before T-03.
+3. Approve the test report from T-06 before delivery.
 
-## Requirement coverage
-
-| Requirement | Covered by |
-|---|---|
-| R1 stock visible | T3, T4 |
-| R2-R6 reserve, exact fit, insufficient, all-or-nothing, zero stock | T2, T4 |
-| R7, R8, R12, R19 validation (quantity, empty, duplicate part, request ID) | T2, T4 |
-| R9, R10 unknown part / job | T2, T4 |
-| R11, R18, R20, R21, R22 duplicates and request ID | T2, T4 |
-| R13 job state (SCHEDULED only) | T2, T4 |
-| R14 cancelled job frees stock | T2, T4 |
-| R15 concurrency | T2 (lock), T4 (test) |
-| R16 Feature 1 unchanged | T1, T4 |
-| R17 `ApiError` bodies | T3, T4 |
-
-## Human gates
-1. After T0: approve the spec and the feature number before any code.
-2. After T2: review the Reserve action (high risk) before endpoints are built.
-3. After T4: approve the test report. After T5: approve the decision log.
-
-## Stop rules
-- An agent retries a failing step at most 2 times, then stops and asks the human.
-- Any agent that needs to change `Job`, `bookJob` or `ApiError` stops. Those are out of scope (R16).
-- Never claim a test passed unless it was run.
-
-## Out of scope for this plan
-Expiry, Confirm step, release/changing reservations, UI, fixing the Feature 1 `bookJob` race, a `code` field on `ApiError`.
+## Assumptions
+Estimates are rough guesses. The critic is a backend check, not an AI model. Expiry of `HELD` reservations is not planned (ADR open question 1).
