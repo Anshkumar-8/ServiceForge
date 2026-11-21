@@ -1,6 +1,6 @@
 # Requirements: Check stock and reserve parts for a scheduled job
 
-Status: requirements only, no code. Drafted with the BA agent (Claude), then human-reviewed; R11 and D4 edited by the author.
+Status: requirements only, no code. Drafted with the BA agent (Claude), then human-reviewed; updated after the Session 3 ADR and design review (request ID, derived availability, no expiry).
 Sources read: spec-generation-skill, Feature 1 spec + decisions, bugfix-1, `pipeline/rules/overlap-checks.md`, backend model/data/service/controller.
 
 ## 1. Summary
@@ -12,7 +12,7 @@ Let a user reserve quantities of parts from a single global stock pool against a
 | # | Decision |
 |---|---|
 | D1 | Reservation is a separate endpoint, not part of `POST /api/jobs`. The Job must already exist (slot already booked). |
-| D2 | Request carries parts + quantities. The `Job` model is unchanged. |
+| D2 | Request carries a request ID plus parts + quantities. The `Job` model is unchanged. (Request ID added after ADR 1.) |
 | D3 | Stock is identified by part ID; name is a display field. |
 | D4 | Only jobs with `SCHEDULED` status can reserve. `COMPLETED` and `CANCELLED` jobs are not reservable. |
 | D5 | Cancelling a job automatically releases its reservations (mirrors Feature 1: cancelled jobs free the slot). |
@@ -20,9 +20,10 @@ Let a user reserve quantities of parts from a single global stock pool against a
 | D7 | Multi-part request is all-or-nothing. If any part is short, nothing is reserved and 409 names the short part. |
 | D8 | Changing or expiring reservations is out of scope. |
 | D9 | Stock is one global pool (no per-warehouse or per-technician stock). |
-| D10 | HTTP: 201 success; 409 insufficient stock or duplicate reservation; 404 unknown job or part; 400 quantity <= 0 or empty request. Bodies are `ApiError`. |
+| D10 | HTTP: 201 success; 409 insufficient stock, same job+part reserved again, job not SCHEDULED, or request ID reused for a different request; 404 unknown job or part; 400 quantity <= 0, empty request, duplicate part in one request, or missing request ID. Bodies are `ApiError`. |
 | D11 | Backend only; no Angular UI. |
-| D12 | Concurrent reservations must not oversubscribe stock (check-and-decrement is atomic in the mock store). |
+| D12 | Concurrent reservations must not oversubscribe stock. Availability is derived (stock minus active reservations); on-hand stock is never decremented. The check and the reservation are one atomic step. (Reworded after design review.) |
+| D13 | Request ID is a body field `requestId`. Checked first. Same ID + same job/items returns the original result; same ID + different job/items is 409. Only successful reservations are remembered. |
 
 Proposed endpoint shape (a suggestion, not a human decision): `POST /api/jobs/{jobId}/reservations` with body `{ "items": [ { "partId": 1, "quantity": 2 } ] }`; plus a read of stock (`GET /api/parts`) so "check stock" is observable.
 
@@ -50,7 +51,12 @@ Proposed seed parts (new `Part` model, seeded in `MockDataStore`): part 1 "Capac
 | R8 | Given a valid job, when `items` is empty or missing, then 400. |
 | R9 | Given part id 999, when job 1 reserves it, then 404 and nothing is reserved (including other valid parts in the same request). |
 | R10 | Given job id 999, when reserving part 1 x 1, then 404. |
-| R11 | Given job 1 reserves part 1 x 2, when job 1 reserves part 1 x 1 again, then 409 (duplicate job/part), stock unchanged. A second request for a different, non-duplicated part is allowed. |
+| R11 | Given job 1 reserves part 1 x 2, when job 1 reserves part 1 x 1 again, with a NEW request ID, then 409 (duplicate job/part), stock unchanged. A request for a different, non-duplicated part is allowed. |
+| R18 | Given job 1 reserved part 1 x 2 with request ID "abc", when the same request ID "abc" is sent again, then the original result is returned and stock is unchanged (no second reservation). |
+| R19 | Given a reservation request, when the request ID is missing or blank, then 400 and nothing is reserved. |
+| R20 | Given request ID "abc" already reserved job 1 part 1 x 2, when "abc" is sent for job 2 or for different items, then 409 and nothing changes. |
+| R21 | Given job 1's reservation with ID "abc" succeeded and job 1 is now CANCELLED, when "abc" is sent again, then the original result is returned (the ID is checked first). |
+| R22 | Given a request failed with 409 for insufficient stock, when the same request ID is retried, then it is evaluated again (failures are not remembered). |
 | R12 | Given a request lists part 1 twice, when submitted, then 400; nothing reserved. |
 | R13 | Given job 1 is CANCELLED or COMPLETED, when reserving part 1 x 1, then 409 and stock unchanged. |
 | R14 | Given job 1 holds part 1 x 4 (available 6), when job 1 becomes CANCELLED, then part 1 available is 10 and job 1 no longer holds a reservation. |
@@ -63,13 +69,13 @@ Proposed seed parts (new `Part` model, seeded in `MockDataStore`): part 1 "Capac
 | Case | Expected |
 |---|---|
 | Insufficient stock | 409 naming the first short part; nothing reserved (R4, R5, R6). |
-| Concurrent reservations | Atomic check-and-decrement; never oversubscribed (R15). |
+| Concurrent reservations | One atomic check-and-reserve step; availability is derived, never negative (R15). |
 | Job cancelled | Cannot reserve (R13); existing reservations released (R14). |
 | Job rescheduled | Rescheduling does not exist in Feature 1 (no update endpoint; `startTime`/`endTime` are final). Not a feature here. If it is added later, reservations should stay attached to the job id; to be decided then. |
 | Quantity 0 / negative | 400 (R7). |
 | Unknown part | 404, whole request rejected (R9). |
 | Unknown job | 404 (R10). |
-| Duplicate reservation | 409 (R11); duplicate part within one request (R12). |
+| Duplicate reservation | Same request ID: original result (R18). New ID, same job+part: 409 (R11). Duplicate part within one request: 400 (R12). |
 | Empty list | 400 (R8). |
 | COMPLETED job | 409 (R13); only SCHEDULED jobs can reserve. |
 
