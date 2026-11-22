@@ -10,8 +10,8 @@ Decisions made while building Feature 1 that later features may need to retrieve
 
 **Where it lives in code:** `backend/src/main/java/com/serviceforge/service/TechnicianAvailabilityService.java`, `TRAVEL_BUFFER_MINUTES` constant.
 
-## Decision: overlap detection compares exact start times, not intervals
+## Decision: overlap detection uses buffered intervals (supersedes the exact-start-time check)
 
-**What was decided (and should probably be reconsidered):** the current overlap check in `bookJob(...)` rejects a new booking only if its start time exactly matches an existing booking's start time. It does not check whether the two time ranges genuinely overlap.
+**What was decided:** `bookJob(...)` treats each job as blocking `[start, end + 45 min]`. A new booking is rejected (409) if `newStart < existingEnd + buffer` and `existingStart < newEnd + buffer`. A gap of exactly 45 minutes is allowed. `CANCELLED` jobs do not block. The original check compared exact start times only, which silently accepted overlapping bookings.
 
-**Why it matters:** this is a live bug, not a design choice anyone defended. It means two jobs with different-but-overlapping start times for the same technician are both silently accepted. Anything that assumes "a technician's booked slots never overlap" is currently assuming something the code doesn't guarantee.
+**Why it matters:** anything that assumes "a technician's booked slots never overlap, and are at least 45 minutes apart" can now rely on it for jobs booked through `bookJob`. Note this also means the seed data's back-to-back style bookings (e.g. a job starting right after another ends) are now rejected.
