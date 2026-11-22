@@ -1,0 +1,109 @@
+[ {
+  "id" : "mem-001",
+  "namespace" : "serviceforge:main:dev",
+  "sourceTask" : "feature-1/decisions",
+  "timestamp" : "2026-11-22T17:47:35.813767600Z",
+  "typeTag" : "fact",
+  "content" : "Every booked job blocks its own time plus a 45-minute travel buffer; the value is TRAVEL_BUFFER_MINUTES in TechnicianAvailabilityService and must never be hardcoded.",
+  "status" : "active",
+  "supersededBy" : null
+}, {
+  "id" : "mem-002",
+  "namespace" : "serviceforge:main:dev",
+  "sourceTask" : "bugfix-1/overlap",
+  "timestamp" : "2026-11-22T17:47:35.951052200Z",
+  "typeTag" : "decision",
+  "content" : "Overlap detection compares buffered intervals: conflict when newStart < existingEnd + buffer and existingStart < newEnd + buffer; exactly 45 minutes apart is allowed.",
+  "status" : "active",
+  "supersededBy" : null
+}, {
+  "id" : "mem-003",
+  "namespace" : "serviceforge:main:dev",
+  "sourceTask" : "bugfix-1/overlap",
+  "timestamp" : "2026-11-22T17:47:35.999914600Z",
+  "typeTag" : "fact",
+  "content" : "CANCELLED jobs do not block a slot, only the same technician's jobs are compared, and conflicts return 409 with an ApiError body.",
+  "status" : "active",
+  "supersededBy" : null
+}, {
+  "id" : "mem-004",
+  "namespace" : "serviceforge:main:dev",
+  "sourceTask" : "bugfix-1/second-pass",
+  "timestamp" : "2026-11-22T17:47:36.004125Z",
+  "typeTag" : "decision",
+  "content" : "A booking whose end time is not after its start time is rejected with 400 and an ApiError body before any overlap check.",
+  "status" : "active",
+  "supersededBy" : null
+}, {
+  "id" : "mem-005",
+  "namespace" : "serviceforge:main:dev",
+  "sourceTask" : "feature-1/review",
+  "timestamp" : "2026-11-22T17:47:36.010621400Z",
+  "typeTag" : "context",
+  "content" : "Known issue: bookJob has no lock and jobs is a plain ArrayList, so two simultaneous bookings for one technician can both pass the overlap check; logged as a separate bug.",
+  "status" : "active",
+  "supersededBy" : null
+}, {
+  "id" : "mem-006",
+  "namespace" : "serviceforge:main:dev",
+  "sourceTask" : "rules/overlap-checks",
+  "timestamp" : "2026-11-22T17:47:36.015182Z",
+  "typeTag" : "decision",
+  "content" : "New features must call TechnicianAvailabilityService.bookJob and never re-implement the overlap check or the travel buffer.",
+  "status" : "active",
+  "supersededBy" : null
+}, {
+  "id" : "mem-007",
+  "namespace" : "serviceforge:day5-memory-pipeline:dev",
+  "sourceTask" : "feature-2/adr",
+  "timestamp" : "2026-11-22T17:47:36.033483100Z",
+  "typeTag" : "decision",
+  "content" : "Availability is derived as stock minus HELD and CONFIRMED reservations of non-cancelled jobs; on-hand stock is never decremented.",
+  "status" : "active",
+  "supersededBy" : null
+}, {
+  "id" : "mem-008",
+  "namespace" : "serviceforge:day5-memory-pipeline:dev",
+  "sourceTask" : "feature-2/adr",
+  "timestamp" : "2026-11-22T17:47:36.038929500Z",
+  "typeTag" : "decision",
+  "content" : "Reserve checks the request ID first: same ID and same content returns the original result, same ID with different content is 409.",
+  "status" : "active",
+  "supersededBy" : null
+}, {
+  "id" : "mem-009",
+  "namespace" : "serviceforge:day5-memory-pipeline:dev",
+  "sourceTask" : "feature-2/adr",
+  "timestamp" : "2026-11-22T17:47:36.046132300Z",
+  "typeTag" : "decision",
+  "content" : "Reservation status flow is HELD to CONFIRMED or REJECTED, and HELD or CONFIRMED to RELEASED; Confirm works only on HELD and release is safe to repeat.",
+  "status" : "active",
+  "supersededBy" : null
+}, {
+  "id" : "mem-010",
+  "namespace" : "serviceforge:day5-memory-pipeline:dev",
+  "sourceTask" : "feature-2/adr",
+  "timestamp" : "2026-11-22T17:47:36.050750900Z",
+  "typeTag" : "decision",
+  "content" : "A reservation critic runs inside Confirm, re-checks rules from data only, ignores job notes, and an unavailable critic leaves the reservation HELD and not finalized.",
+  "status" : "active",
+  "supersededBy" : null
+}, {
+  "id" : "mem-011",
+  "namespace" : "serviceforge:day5-memory-pipeline:dev",
+  "sourceTask" : "feature-2/design-review",
+  "timestamp" : "2026-11-22T17:47:36.054404300Z",
+  "typeTag" : "fact",
+  "content" : "Expiry was dropped because a hold needs a Confirm step; with Confirm added, unconfirmed HELD reservations can stay stuck, so expiry is an open question.",
+  "status" : "active",
+  "supersededBy" : null
+}, {
+  "id" : "mem-012",
+  "namespace" : "serviceforge:day5-memory-pipeline:dev",
+  "sourceTask" : "feature-2/design-review",
+  "timestamp" : "2026-11-22T17:47:36.061558100Z",
+  "typeTag" : "decision",
+  "content" : "Parts and reservations live in a new PartStore with its own lock; MockDataStore gains only findJob(id) so Feature 1 stays unchanged.",
+  "status" : "active",
+  "supersededBy" : null
+} ]

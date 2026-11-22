@@ -3,6 +3,7 @@ package com.serviceforge.controller;
 import com.serviceforge.dto.ApiError;
 import com.serviceforge.dto.BookJobRequest;
 import com.serviceforge.model.Job;
+import com.serviceforge.service.InvalidBookingException;
 import com.serviceforge.service.TechnicianAvailabilityService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +31,8 @@ public class JobController {
                     request.getStartTime(),
                     request.getEndTime());
             return ResponseEntity.status(201).body(job);
+        } catch (InvalidBookingException e) {
+            return ResponseEntity.status(400).body(new ApiError(e.getMessage()));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(404).body(new ApiError(e.getMessage()));
         } catch (IllegalStateException e) {
